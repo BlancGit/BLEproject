@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only/build/tfm/lib/ext/qcbor-subbuild/CMakeFiles/qcbor-populate"
+		},
+		{
+			"file" : "/home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only/build/tfm/lib/ext/qcbor-subbuild/CMakeFiles/qcbor-populate.rule"
+		},
+		{
+			"file" : "/home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only/build/tfm/lib/ext/qcbor-subbuild/CMakeFiles/qcbor-populate-complete.rule"
+		},
+		{
+			"file" : "/home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only/build/tfm/lib/ext/qcbor-subbuild/qcbor-populate-prefix/src/qcbor-populate-stamp/qcbor-populate-build.rule"
+		},
+		{
+			"file" : "/home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only/build/tfm/lib/ext/qcbor-subbuild/qcbor-populate-prefix/src/qcbor-populate-stamp/qcbor-populate-configure.rule"
+		},
+		{
+			"file" : "/home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only/build/tfm/lib/ext/qcbor-subbuild/qcbor-populate-prefix/src/qcbor-populate-stamp/qcbor-populate-download.rule"
+		},
+		{
+			"file" : "/home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only/build/tfm/lib/ext/qcbor-subbuild/qcbor-populate-prefix/src/qcbor-populate-stamp/qcbor-populate-install.rule"
+		},
+		{
+			"file" : "/home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only/build/tfm/lib/ext/qcbor-subbuild/qcbor-populate-prefix/src/qcbor-populate-stamp/qcbor-populate-mkdir.rule"
+		},
+		{
+			"file" : "/home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only/build/tfm/lib/ext/qcbor-subbuild/qcbor-populate-prefix/src/qcbor-populate-stamp/qcbor-populate-patch.rule"
+		},
+		{
+			"file" : "/home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only/build/tfm/lib/ext/qcbor-subbuild/qcbor-populate-prefix/src/qcbor-populate-stamp/qcbor-populate-test.rule"
+		},
+		{
+			"file" : "/home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only/build/tfm/lib/ext/qcbor-subbuild/qcbor-populate-prefix/src/qcbor-populate-stamp/qcbor-populate-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"qcbor-populate"
+		],
+		"name" : "qcbor-populate"
+	}
+}

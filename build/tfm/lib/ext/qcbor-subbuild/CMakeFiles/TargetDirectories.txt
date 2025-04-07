@@ -1,0 +1,3 @@
+/home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only/build/tfm/lib/ext/qcbor-subbuild/CMakeFiles/qcbor-populate.dir
+/home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only/build/tfm/lib/ext/qcbor-subbuild/CMakeFiles/edit_cache.dir
+/home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only/build/tfm/lib/ext/qcbor-subbuild/CMakeFiles/rebuild_cache.dir

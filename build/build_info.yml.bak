@@ -1,0 +1,54 @@
+cmake:
+  application:
+    configuration-dir: /home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only
+    source-dir: /home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only
+  board:
+    name: nrf5340dk
+    qualifiers: nrf5340/cpuapp/ns
+    revision: 
+  devicetree:
+    bindings-dirs:
+     - /home/blanc/zephyrproject/zephyr/dts/bindings
+    files:
+     - /home/blanc/zephyrproject/zephyr/boards/nordic/nrf5340dk/nrf5340dk_nrf5340_cpuapp_ns.dts
+    include-dirs:
+     - /home/blanc/zephyrproject/modules/hal/atmel/include
+     - /home/blanc/zephyrproject/modules/hal/gigadevice/include
+     - /home/blanc/zephyrproject/modules/hal/microchip/include
+     - /home/blanc/zephyrproject/modules/hal/microchip/dts
+     - /home/blanc/zephyrproject/modules/hal/nuvoton/dts
+     - /home/blanc/zephyrproject/modules/hal/nxp/dts
+     - /home/blanc/zephyrproject/modules/hal/stm32/dts
+     - /home/blanc/zephyrproject/zephyr/include
+     - /home/blanc/zephyrproject/zephyr/include/zephyr
+     - /home/blanc/zephyrproject/zephyr/dts/common
+     - /home/blanc/zephyrproject/zephyr/dts/x86
+     - /home/blanc/zephyrproject/zephyr/dts/xtensa
+     - /home/blanc/zephyrproject/zephyr/dts/sparc
+     - /home/blanc/zephyrproject/zephyr/dts/riscv
+     - /home/blanc/zephyrproject/zephyr/dts/posix
+     - /home/blanc/zephyrproject/zephyr/dts/nios2
+     - /home/blanc/zephyrproject/zephyr/dts/arm64
+     - /home/blanc/zephyrproject/zephyr/dts/arm
+     - /home/blanc/zephyrproject/zephyr/dts/arc
+     - /home/blanc/zephyrproject/zephyr/dts
+  kconfig:
+    files:
+     - /home/blanc/zephyrproject/zephyr/boards/nordic/nrf5340dk/nrf5340dk_nrf5340_cpuapp_ns_defconfig
+     - /home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only/prj.conf
+    user-files:
+     - /home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only/prj.conf
+  toolchain:
+    name: zephyr
+    path: /home/blanc/zephyr-sdk-0.17.0
+  vendor-specific:
+    nordic:
+      svdfile: /home/blanc/zephyrproject/modules/hal/nordic/nrfx/mdk/nrf5340_application.svd
+  zephyr:
+    version: 4.0.99
+    zephyr-base: /home/blanc/zephyrproject/zephyr
+version: 0.1.0
+west:
+  command: /home/blanc/zephyrproject/.venv/bin/west build -p always -b nrf5340dk/nrf5340/cpuapp/ns .
+  topdir: /home/blanc/zephyrproject
+  version: 1.3.0

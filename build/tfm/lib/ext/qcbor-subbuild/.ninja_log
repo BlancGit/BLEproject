@@ -1,0 +1,21 @@
+# ninja log v5
+2	32	1743497680766290771	qcbor-populate-prefix/src/qcbor-populate-stamp/qcbor-populate-mkdir	83cf976dde27e89f
+2	32	1743497680766290771	/home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only/build/tfm/lib/ext/qcbor-subbuild/qcbor-populate-prefix/src/qcbor-populate-stamp/qcbor-populate-mkdir	83cf976dde27e89f
+32	3101	1743497683836969989	qcbor-populate-prefix/src/qcbor-populate-stamp/qcbor-populate-download	d0dbe419448bdcfd
+32	3101	1743497683836969989	/home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only/build/tfm/lib/ext/qcbor-subbuild/qcbor-populate-prefix/src/qcbor-populate-stamp/qcbor-populate-download	d0dbe419448bdcfd
+3101	3134	0	qcbor-populate-prefix/src/qcbor-populate-stamp/qcbor-populate-update	4efd733b1096ca88
+3101	3134	0	/home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only/build/tfm/lib/ext/qcbor-subbuild/qcbor-populate-prefix/src/qcbor-populate-stamp/qcbor-populate-update	4efd733b1096ca88
+3134	3151	1743497683886964849	qcbor-populate-prefix/src/qcbor-populate-stamp/qcbor-populate-patch	782969b79a04d977
+3134	3151	1743497683886964849	/home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only/build/tfm/lib/ext/qcbor-subbuild/qcbor-populate-prefix/src/qcbor-populate-stamp/qcbor-populate-patch	782969b79a04d977
+3151	3169	1743497683903963101	qcbor-populate-prefix/src/qcbor-populate-stamp/qcbor-populate-configure	e17f155010228abe
+3151	3169	1743497683903963101	/home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only/build/tfm/lib/ext/qcbor-subbuild/qcbor-populate-prefix/src/qcbor-populate-stamp/qcbor-populate-configure	e17f155010228abe
+3169	3187	1743497683921961251	qcbor-populate-prefix/src/qcbor-populate-stamp/qcbor-populate-build	b5a99b4bcd0fbb94
+3169	3187	1743497683921961251	/home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only/build/tfm/lib/ext/qcbor-subbuild/qcbor-populate-prefix/src/qcbor-populate-stamp/qcbor-populate-build	b5a99b4bcd0fbb94
+3187	3205	1743497683939959401	qcbor-populate-prefix/src/qcbor-populate-stamp/qcbor-populate-install	9ebf0d4105a5cfeb
+3187	3205	1743497683939959401	/home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only/build/tfm/lib/ext/qcbor-subbuild/qcbor-populate-prefix/src/qcbor-populate-stamp/qcbor-populate-install	9ebf0d4105a5cfeb
+3205	3228	1743497683962957037	qcbor-populate-prefix/src/qcbor-populate-stamp/qcbor-populate-test	1f7706bb53ff786c
+3205	3228	1743497683962957037	/home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only/build/tfm/lib/ext/qcbor-subbuild/qcbor-populate-prefix/src/qcbor-populate-stamp/qcbor-populate-test	1f7706bb53ff786c
+3228	3253	1743497683987954467	CMakeFiles/qcbor-populate-complete	d2a7675690ae6a41
+3228	3253	1743497683987954467	qcbor-populate-prefix/src/qcbor-populate-stamp/qcbor-populate-done	d2a7675690ae6a41
+3228	3253	1743497683987954467	/home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only/build/tfm/lib/ext/qcbor-subbuild/CMakeFiles/qcbor-populate-complete	d2a7675690ae6a41
+3228	3253	1743497683987954467	/home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only/build/tfm/lib/ext/qcbor-subbuild/qcbor-populate-prefix/src/qcbor-populate-stamp/qcbor-populate-done	d2a7675690ae6a41
