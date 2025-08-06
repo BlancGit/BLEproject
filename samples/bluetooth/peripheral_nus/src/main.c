@@ -11,6 +11,10 @@
 #define DEVICE_NAME		CONFIG_BT_DEVICE_NAME
 #define DEVICE_NAME_LEN		(sizeof(DEVICE_NAME) - 1)
 
+#define CHUNK_SIZE       16            // Initial received data size (16 bytes)
+#define DUPLICATED_SIZE  64            // Duplicated data size (64 bytes)
+#define NOTIF_CHUNK_SIZE 20           // Max notification chunk size
+
 static const struct bt_data ad[] = {
 	BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
 	BT_DATA(BT_DATA_NAME_COMPLETE, DEVICE_NAME, DEVICE_NAME_LEN),
@@ -29,13 +33,30 @@ static void notif_enabled(bool enabled, void *ctx)
 
 static void received(struct bt_conn *conn, const void *data, uint16_t len, void *ctx)
 {
-	char message[CONFIG_BT_L2CAP_TX_MTU + 1] = "";
+	uint8_t rx_data[CHUNK_SIZE] = {0};  // Buffer to store received data
+	uint8_t tx_data[DUPLICATED_SIZE] = {0}; // Buffer to store duplicated data
+	int err;
 
-	ARG_UNUSED(conn);
-	ARG_UNUSED(ctx);
+	printk("Received %d bytes from mobile\n", len);
 
-	memcpy(message, data, MIN(sizeof(message) - 1, len));
-	printk("%s() - Len: %d, Message: %s\n", __func__, len, message);
+	// Copy received data into rx_data (up to 16 bytes)
+	memcpy(rx_data, data, MIN(len, CHUNK_SIZE));
+
+	// Duplicate the 16 bytes into 64 bytes
+	for (int i = 0; i < 4; i++) {
+		memcpy(&tx_data[i * CHUNK_SIZE], rx_data, CHUNK_SIZE);
+	}
+
+	// Send the duplicated data in chunks of 20 bytes
+	for (int i = 0; i < DUPLICATED_SIZE; i += NOTIF_CHUNK_SIZE) {
+		int chunk_size = MIN(NOTIF_CHUNK_SIZE, DUPLICATED_SIZE - i); // Remaining bytes to send
+		err = bt_nus_send(conn, &tx_data[i], chunk_size);  // Send chunk
+		if (err != 0) {
+			printk("Notification failed for chunk %d (err %d)\n", i / NOTIF_CHUNK_SIZE, err);
+			break;
+		}
+		printk("Sent chunk %d of %d bytes\n", i / NOTIF_CHUNK_SIZE, chunk_size);
+	}
 }
 
 struct bt_nus_cb nus_listener = {
@@ -49,18 +70,21 @@ int main(void)
 
 	printk("Sample - Bluetooth Peripheral NUS\n");
 
+	// Register the NUS callback
 	err = bt_nus_cb_register(&nus_listener, NULL);
 	if (err) {
 		printk("Failed to register NUS callback: %d\n", err);
 		return err;
 	}
 
+	// Enable Bluetooth
 	err = bt_enable(NULL);
 	if (err) {
 		printk("Failed to enable bluetooth: %d\n", err);
 		return err;
 	}
 
+	// Start advertising with NUS service
 	err = bt_le_adv_start(BT_LE_ADV_CONN_FAST_1, ad, ARRAY_SIZE(ad), sd, ARRAY_SIZE(sd));
 	if (err) {
 		printk("Failed to start advertising: %d\n", err);
@@ -70,17 +94,9 @@ int main(void)
 	printk("Initialization complete\n");
 
 	while (true) {
-		const char *hello_world = "Hello World!\n";
-
 		k_sleep(K_SECONDS(3));
-
-		err = bt_nus_send(NULL, hello_world, strlen(hello_world));
-		printk("Data send - Result: %d\n", err);
-
-		if (err < 0 && (err != -EAGAIN) && (err != -ENOTCONN)) {
-			return err;
-		}
 	}
 
 	return 0;
 }
+	

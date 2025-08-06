@@ -7,5 +7,12 @@ project(peripheral_sc_only)
 target_sources(app PRIVATE
   src/main.c
 )
+target_sources(app PRIVATE src/psa_attestation.c)
+target_sources(app PRIVATE src/util_sformat.c)
+target_sources(app PRIVATE src/util_app_log.c)
+
+target_include_directories(app PRIVATE
+  $<TARGET_PROPERTY:tfm,TFM_BINARY_DIR>/api_ns/interface/include
+)
 
 zephyr_library_include_directories(${ZEPHYR_BASE}/samples/bluetooth)

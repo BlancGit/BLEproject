@@ -1,0 +1,21 @@
+-- west build: making build dir /home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only/build pristine
+-- west build: generating a build system
+-- Application: /home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only
+-- CMake version: 3.31.5
+-- Found Python3: /home/blanc/zephyrproject/.venv/bin/python3 (found suitable version "3.12.3", minimum required is "3.10") found components: Interpreter
+-- Cache files will be written to: /home/blanc/.cache/zephyr
+-- Zephyr version: 4.0.99 (/home/blanc/zephyrproject/zephyr)
+-- Found west (found suitable version "1.3.0", minimum required is "0.14.0")
+-- Board: nrf5340dk, qualifiers: nrf5340/cpuapp/ns
+-- Found host-tools: zephyr 0.17.0 (/home/blanc/zephyr-sdk-0.17.0)
+-- Found toolchain: zephyr 0.17.0 (/home/blanc/zephyr-sdk-0.17.0)
+-- Found Dtc: /home/blanc/zephyr-sdk-0.17.0/sysroots/x86_64-pokysdk-linux/usr/bin/dtc (found suitable version "1.6.0", minimum required is "1.4.6")
+-- Found BOARD.dts: /home/blanc/zephyrproject/zephyr/boards/nordic/nrf5340dk/nrf5340dk_nrf5340_cpuapp_ns.dts
+-- Generated zephyr.dts: /home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only/build/zephyr/zephyr.dts
+-- Generated pickled edt: /home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only/build/zephyr/edt.pickle
+-- Generated devicetree_generated.h: /home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only/build/zephyr/include/generated/zephyr/devicetree_generated.h
+-- Including generated dts.cmake file: /home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only/build/zephyr/dts.cmake
+Parsing /home/blanc/zephyrproject/zephyr/Kconfig
+Loaded configuration '/home/blanc/zephyrproject/zephyr/boards/nordic/nrf5340dk/nrf5340dk_nrf5340_cpuapp_ns_defconfig'
+Merged configuration '/home/blanc/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only/prj.conf'
+-- Configuring incomplete, errors occurred!

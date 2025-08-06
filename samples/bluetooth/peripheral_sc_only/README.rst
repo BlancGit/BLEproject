@@ -1,15 +1,15 @@
-.. zephyr:code-sample:: ble_peripheral_sc_only
-   :name: Peripheral SC-only
-   :relevant-api: bt_conn bluetooth
+.. zephyr:code-sample:: ble_peripheral_hr
+   :name: Heart-rate Monitor (Peripheral)
+   :relevant-api: bt_hrs bt_bas bluetooth
 
-   Enable "Secure Connections Only" mode for a Bluetooth LE peripheral.
+   Expose a Heart Rate (HR) GATT Service generating dummy heart-rate values.
 
 Overview
 ********
 
 Similar to the :zephyr:code-sample:`ble_peripheral` sample, except that this
-application enables the Secure Connections Only mode, i.e. will only
-accept connections that are secured using security level 4 (FIPS).
+application specifically exposes the HR (Heart Rate) GATT Service. Once a device
+connects it will generate dummy heart-rate values.
 
 
 Requirements
@@ -21,7 +21,7 @@ Requirements
 Building and Running
 ********************
 
-This sample can be found under :zephyr_file:`samples/bluetooth/peripheral_sc_only`
-in the Zephyr tree.
+This sample can be found under :zephyr_file:`samples/bluetooth/peripheral_hr` in the
+Zephyr tree.
 
 See :zephyr:code-sample-category:`bluetooth` samples for details.
