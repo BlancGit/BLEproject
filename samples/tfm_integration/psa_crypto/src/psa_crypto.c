@@ -24,8 +24,8 @@ LOG_MODULE_DECLARE(app, CONFIG_LOG_DEFAULT_LEVEL);
 
 /* Formatting details for displaying hex dumps. */
 struct sf_hex_tbl_fmt crp_fmt = {
-	.ascii = true,
-	.addr_label = true,
+	.ascii = false,
+	.addr_label = false,
 	.addr = 0
 };
 
@@ -859,8 +859,8 @@ void crp_test_rng(void)
 	psa_status_t status;
 	uint8_t outbuf[256] = { 0 };
 	struct sf_hex_tbl_fmt fmt = {
-		.ascii = true,
-		.addr_label = true,
+		.ascii = false,
+		.addr_label = false,
 		.addr = 0
 	};
 

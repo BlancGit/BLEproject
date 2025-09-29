@@ -122,8 +122,8 @@ psa_status_t att_test(void)
 
 	/* String format output config. */
 	struct sf_hex_tbl_fmt fmt = {
-		.ascii = true,
-		.addr_label = true,
+		.ascii = false,
+		.addr_label = false,
 		.addr = 0
 	};
 

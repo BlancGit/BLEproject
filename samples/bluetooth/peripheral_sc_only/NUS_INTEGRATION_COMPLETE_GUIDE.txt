@@ -1,0 +1,414 @@
+================================================================================
+NUS INTEGRATION INTO PERIPHERAL_SC_ONLY - COMPLETE IMPLEMENTATION GUIDE
+================================================================================
+Last Updated: August 28, 2025
+Status: FULLY FUNCTIONAL - Secure BLE + NUS + TF-M Ready
+
+================================================================================
+PART 1: WHAT WE IMPLEMENTED
+================================================================================
+
+We successfully integrated Nordic UART Service (NUS) into the secure-connections-only
+BLE peripheral, replacing the Heart Rate Service (HRS) and Battery Service (BAS)
+with a bidirectional UART communication channel while maintaining secure pairing.
+
+KEY ACHIEVEMENTS:
+-----------------
+✓ Secure Connections Only (6-digit passkey authentication)
+✓ Nordic UART Service for flexible data exchange
+✓ Challenge-response mechanism (16-byte in, 64-byte out)
+✓ TF-M attestation framework ready
+✓ Device Information Service with custom strings
+✓ Debug logging for troubleshooting
+
+================================================================================
+PART 2: CODE CHANGES MADE
+================================================================================
+
+FILE 1: main.c
+--------------
+Location: peripheral_sc_only/src/main.c
+
+REMOVED:
+--------
+```c
+#include <zephyr/bluetooth/services/bas.h>
+#include <zephyr/bluetooth/services/hrs.h>
+
+static bool hrf_ntf_enabled;
+
+// HRS/BAS advertising data
+BT_DATA_BYTES(BT_DATA_UUID16_ALL,
+              BT_UUID_16_ENCODE(BT_UUID_HRS_VAL),
+              BT_UUID_16_ENCODE(BT_UUID_BAS_VAL)),
+
+// Old notification functions
+static void hrs_ntf_changed(bool enabled) { ... }
+static void bas_notify(void) { ... }
+static void hrs_notify(void) { ... }
+```
+
+ADDED:
+------
+```c
+#include <zephyr/bluetooth/services/nus.h>
+
+#define CHUNK_SIZE       16    // Initial received data size (16 bytes)
+#define DUPLICATED_SIZE  64    // Duplicated data size (64 bytes)
+#define NOTIF_CHUNK_SIZE 20    // Max notification chunk size
+
+static bool nus_ntf_enabled;
+
+// NUS advertising in scan response
+static const struct bt_data sd[] = {
+    BT_DATA_BYTES(BT_DATA_UUID128_ALL, BT_UUID_NUS_SRV_VAL),
+};
+
+// NUS notification callback
+static void nus_notif_enabled(bool enabled, void *ctx)
+{
+    ARG_UNUSED(ctx);
+    nus_ntf_enabled = enabled;
+    printk("NUS notification status changed: %s\n", enabled ? "enabled" : "disabled");
+}
+
+// Main NUS data handler with debugging
+static void nus_received(struct bt_conn *conn, const void *data, uint16_t len, void *ctx)
+{
+    uint8_t rx_data[CHUNK_SIZE] = {0};
+    uint8_t tx_data[DUPLICATED_SIZE] = {0};
+    int err;
+
+    printk("Received %d bytes from mobile\n", len);
+    printk("Notifications enabled: %s\n", nus_ntf_enabled ? "yes" : "no");
+
+    // Copy received data (up to 16 bytes)
+    memcpy(rx_data, data, MIN(len, CHUNK_SIZE));
+
+    // TODO: Pass rx_data to TF-M for attestation processing
+    // Currently: Duplicate 16 bytes into 64 bytes as dummy response
+    for (int i = 0; i < 4; i++) {
+        memcpy(&tx_data[i * CHUNK_SIZE], rx_data, CHUNK_SIZE);
+    }
+
+    // Check if notifications are enabled before sending
+    if (!nus_ntf_enabled) {
+        printk("Cannot send response - notifications not enabled!\n");
+        return;
+    }
+    
+    // Send response in 20-byte chunks (BLE MTU limitation)
+    for (int i = 0; i < DUPLICATED_SIZE; i += NOTIF_CHUNK_SIZE) {
+        int chunk_size = MIN(NOTIF_CHUNK_SIZE, DUPLICATED_SIZE - i);
+        err = bt_nus_send(conn, &tx_data[i], chunk_size);
+        if (err != 0) {
+            printk("Notification failed for chunk %d (err %d)\n", 
+                   i / NOTIF_CHUNK_SIZE, err);
+            break;
+        }
+        printk("Sent chunk %d of %d bytes\n", 
+               i / NOTIF_CHUNK_SIZE, chunk_size);
+    }
+}
+
+// Register NUS callbacks
+static struct bt_nus_cb nus_cb = {
+    .notif_enabled = nus_notif_enabled,
+    .received = nus_received,
+};
+
+// In main():
+err = bt_nus_cb_register(&nus_cb, NULL);
+if (err) {
+    printk("Failed to register NUS callback: %d\n", err);
+    return err;
+}
+```
+
+FILE 2: prj.conf
+----------------
+Location: peripheral_sc_only/prj.conf
+
+CHANGED:
+--------
+```conf
+# OLD:
+CONFIG_BT_DEVICE_NAME="SC HR Peripheral"
+CONFIG_BT_HRS=y
+CONFIG_BT_BAS=y
+
+# NEW:
+CONFIG_BT_DEVICE_NAME="SC NUS Peripheral"
+
+# Enable Nordic UART Service
+CONFIG_BT_ZEPHYR_NUS=y
+
+# Device Information Service with custom strings
+CONFIG_BT_DIS=y
+CONFIG_BT_DIS_PNP=n
+CONFIG_BT_DIS_MANUF="NTU IoT Security Lab"
+CONFIG_BT_DIS_MODEL="TFM-NUS-SC Device v1.0"
+CONFIG_BT_DIS_SERIAL_NUMBER=y
+CONFIG_BT_DIS_SERIAL_NUMBER_STR="2024-001"
+CONFIG_BT_DIS_FW_REV=y
+CONFIG_BT_DIS_FW_REV_STR="1.0.0"
+CONFIG_BT_DIS_HW_REV=y
+CONFIG_BT_DIS_HW_REV_STR="nRF5340-DK"
+CONFIG_BT_DIS_SW_REV=y
+CONFIG_BT_DIS_SW_REV_STR="Zephyr 4.0.99"
+```
+
+================================================================================
+PART 3: WHAT YOU SHOULD SEE - SERIAL CONSOLE OUTPUT
+================================================================================
+
+1. INITIAL BOOT:
+----------------
+```
+[TF-M attestation hex dump - 500+ bytes]
+Bluetooth initializedddddddd
+Advertising successfully started
+Checking TF-M now...
+PSA Framework API Version: 257
+PSA Crypto service minor version: 1
+Generated random data: [16 random bytes]
+```
+
+2. WHEN PHONE CONNECTS:
+------------------------
+```
+Connected to 79:D3:6C:B8:CB:80 (random)
+Passkey for 79:D3:6C:B8:CB:80 (random): 933951
+[00:00:13.598,297] <inf> bt_smp: DHKey generation successful
+```
+
+3. AFTER PAIRING COMPLETE:
+---------------------------
+```
+[00:00:26.545,349] <inf> bt_smp: LTK Stored: 0xd299bba2d773b37347152b8411c0d151
+Security changed: 79:D3:6C:B8:CB:80 (random) level 4
+Pairing Complete
+```
+
+4. WHEN NOTIFICATIONS ENABLED (in LightBlue):
+----------------------------------------------
+```
+NUS notification status changed: enabled
+```
+
+5. WHEN DATA RECEIVED (16 bytes sent from phone):
+---------------------------------------------------
+```
+Received 16 bytes from mobile
+Notifications enabled: yes
+Sent chunk 0 of 20 bytes
+Sent chunk 1 of 20 bytes
+Sent chunk 2 of 20 bytes
+Sent chunk 3 of 4 bytes
+```
+
+================================================================================
+PART 4: TESTING WITH LIGHTBLUE APP
+================================================================================
+
+STEP-BY-STEP TESTING:
+---------------------
+1. Open LightBlue app on your phone
+2. Scan for devices - look for "SC NUS Peripheral"
+3. Connect to the device
+4. Enter 6-digit passkey shown in serial console (e.g., 933951)
+5. After pairing, you'll see services:
+
+SERVICES YOU'LL SEE:
+--------------------
+• Generic Access (0x1800)
+• Generic Attribute (0x1801)
+• Device Information (0x180A) - NOW WITH DATA:
+  - Manufacturer: "NTU IoT Security Lab"
+  - Model: "TFM-NUS-SC Device v1.0"
+  - Serial Number: "2024-001"
+  - Firmware Rev: "1.0.0"
+  - Hardware Rev: "nRF5340-DK"
+  - Software Rev: "Zephyr 4.0.99"
+• Nordic UART Service (6E400001-B5A3-F393-E0A9-E50E24DCCA9E)
+  - TX Characteristic (6E400003-...) - For notifications FROM device
+  - RX Characteristic (6E400002-...) - For writing TO device
+
+HOW TO TEST DATA EXCHANGE:
+---------------------------
+1. Tap Nordic UART Service
+2. Find TX Characteristic (6E400003-...)
+3. Tap "Listen for notifications" or the bell icon
+4. Go to RX Characteristic (6E400002-...)
+5. Write hex data (e.g., 0102030405060708090A0B0C0D0E0F10)
+6. You'll receive 4 notification packets on TX:
+   - Packet 1: First 20 bytes of duplicated data
+   - Packet 2: Next 20 bytes
+   - Packet 3: Next 20 bytes
+   - Packet 4: Last 4 bytes (total 64 bytes)
+
+WHERE NOTIFICATIONS APPEAR IN LIGHTBLUE:
+-----------------------------------------
+• NOT in "Read Value" field (that's for manual reads)
+• Look for:
+  - Pop-up bubbles at bottom of screen
+  - Log/History section (clock icon)
+  - Notification counter on TX characteristic
+  - Stay on TX characteristic screen to see them
+
+================================================================================
+PART 5: CURRENT DATA FLOW
+================================================================================
+
+    Mobile App (LightBlue)
+           |
+           | 1. Write 16-byte challenge to RX
+           ↓
+    NUS RX Characteristic
+           |
+           | 2. Triggers nus_received() callback
+           ↓
+    Process in Non-Secure World
+           |
+           | 3. TODO: Pass to TF-M via PSA IPC
+           ↓
+    [Currently: Dummy duplication]
+    [Future: TF-M Attestation Service]
+           |
+           | 4. Generate 64-byte response
+           ↓
+    bt_nus_send() in chunks
+           |
+           | 5. Send via TX notifications (4 packets)
+           ↓
+    Mobile App receives attestation
+
+================================================================================
+PART 6: NEXT STEPS FOR FULL TF-M INTEGRATION
+================================================================================
+
+1. REPLACE DUMMY ATTESTATION:
+------------------------------
+In nus_received(), replace the duplication loop with:
+```c
+// Pass challenge to TF-M
+psa_status_t status;
+size_t token_size;
+status = psa_initial_attestation_get_token(
+    rx_data, CHUNK_SIZE,           // Challenge
+    tx_data, DUPLICATED_SIZE,      // Token buffer
+    &token_size);                  // Actual token size
+
+if (status != PSA_SUCCESS) {
+    printk("Attestation failed: %d\n", status);
+    return;
+}
+```
+
+2. ADD MOBILE-SIDE VERIFICATION:
+---------------------------------
+• Build custom mobile app to replace LightBlue
+• Implement attestation token verification
+• Verify signatures using device's public key
+• Check claims in attestation token
+
+3. IMPLEMENT PROPER CHALLENGE GENERATION:
+------------------------------------------
+• Mobile app generates cryptographic nonce
+• Include timestamp for freshness
+• Prevent replay attacks
+
+4. ADD ERROR HANDLING:
+----------------------
+• Handle TF-M service failures
+• Implement retry mechanism
+• Add timeout for attestation requests
+
+================================================================================
+PART 7: BUILD AND FLASH COMMANDS
+================================================================================
+
+BUILD:
+------
+cd ~/zephyrproject/zephyr/samples/bluetooth/peripheral_sc_only
+west build -p always -b nrf5340dk/nrf5340/cpuapp/ns .
+
+FLASH:
+------
+west flash
+
+MONITOR:
+--------
+screen /dev/ttyACM1 115200
+# OR
+screen /dev/ttyACM0 115200
+
+# To exit screen: Ctrl+A, then K, then Y
+
+================================================================================
+PART 8: TROUBLESHOOTING
+================================================================================
+
+ISSUE: "Screen is terminating"
+-------------------------------
+• Check both /dev/ttyACM0 and /dev/ttyACM1
+• Run: killall screen (if old sessions exist)
+• Run: screen -ls (to see existing sessions)
+• Run: screen -r (to reconnect)
+
+ISSUE: No notifications received
+---------------------------------
+• Ensure you subscribed to TX characteristic FIRST
+• Check serial console for "NUS notification status changed: enabled"
+• Verify "Notifications enabled: yes" when sending data
+• Stay on TX characteristic screen in LightBlue
+
+ISSUE: Build errors with CONFIG_BT_NUS
+---------------------------------------
+• Use CONFIG_BT_ZEPHYR_NUS=y (not CONFIG_BT_NUS=y)
+
+ISSUE: DIS strings not showing
+-------------------------------
+• Enable both flag and string value:
+  CONFIG_BT_DIS_FW_REV=y
+  CONFIG_BT_DIS_FW_REV_STR="1.0.0"
+
+================================================================================
+PART 9: SECURITY ANALYSIS
+================================================================================
+
+CURRENT SECURITY FEATURES:
+---------------------------
+✓ Secure Connections Only (no legacy pairing)
+✓ Authenticated pairing with 6-digit passkey
+✓ MITM protection enabled
+✓ 128-bit AES-CCM encryption
+✓ ECDH key exchange
+✓ TF-M secure/non-secure isolation
+✓ Hardware-backed random number generation
+
+FUTURE SECURITY ENHANCEMENTS:
+------------------------------
+• Signed attestation tokens from TF-M
+• Certificate chain verification
+• Anti-rollback protection
+• Secure key storage in TF-M
+• Runtime firmware measurements
+• Remote attestation protocol
+
+================================================================================
+SUMMARY
+================================================================================
+
+You now have a fully functional BLE device that:
+1. Enforces secure pairing with 6-digit passkey
+2. Uses NUS for flexible bidirectional communication
+3. Implements challenge-response mechanism
+4. Ready for TF-M attestation integration
+5. Provides device information via DIS
+
+The system successfully combines BLE security (pairing/encryption) with
+runtime attestation capabilities, creating a foundation for secure IoT
+devices that can prove their integrity to mobile applications.
+
+Next: Integrate actual TF-M attestation calls to replace dummy response!

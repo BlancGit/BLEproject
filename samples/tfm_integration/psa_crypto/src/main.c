@@ -34,6 +34,8 @@ int main(void)
 	/* Get the entity attestation token (requires ~1kB stack memory!). */
 	att_test();
 
+	return 0;
+
 	/* Crypto tests */
 	crp_test();
 	crp_test_rng();

@@ -1,0 +1,117 @@
+================================================================================
+NUS INTEGRATION INTO PERIPHERAL_SC_ONLY - COMPLETE EXPLANATION
+================================================================================
+
+WHAT YOU'VE SUCCESSFULLY ACHIEVED:
+-----------------------------------
+You've successfully integrated Nordic UART Service (NUS) into your secure-connections-only
+BLE peripheral. The device is now running with both secure pairing AND NUS data exchange.
+
+FROM YOUR SERIAL OUTPUT:
+------------------------
+1. TF-M ATTESTATION DATA (Top section with hex dumps):
+   - The large hex dump at the beginning (00000000-00000210) is your TF-M attestation data
+   - Contains cryptographic tokens, certificates, and secure boot information
+   - Includes "SPE" (Secure Processing Environment) version 0.0.0
+   - SHA256 hashes are visible for integrity verification
+   - PSA_IOT_PROFILE_1 identifier shows TF-M compliance
+   - Website reference "www.oakoak.org" visible in attestation data
+
+2. SUCCESSFUL BLUETOOTH INITIALIZATION:
+   - "Bluetooth initializedddddddd" - BLE stack started successfully
+   - "Advertising successfully started" - Device is discoverable
+
+3. TF-M VERIFICATION:
+   - "PSA Framework API Version: 257" - TF-M framework is running
+   - "PSA Crypto service minor version: 1" - Cryptographic services available
+   - "Generated random data: ED 6F 77..." - Secure random number generation working
+
+4. SECURE CONNECTION ESTABLISHED:
+   - "Connected to 79:D3:6C:B8:CB:80 (random)" - Phone connected
+   - "Passkey for 79:D3:6C:B8:CB:80 (random): 933951" - 6-digit secure pairing
+   - "DHKey generation successful" - Elliptic Curve Diffie-Hellman key exchange completed
+   - "LTK Stored: 0xd299bba2..." - Long Term Key saved for future connections
+   - "Security changed: level 4" - Maximum security level (SC with 128-bit encryption)
+   - "Pairing Complete" - Secure connection fully established
+
+WHAT THE CODE NOW DOES:
+------------------------
+1. ADVERTISING:
+   - Advertises device name "SC NUS Peripheral"
+   - Includes NUS service UUID in scan response data
+   - Makes device discoverable to phones
+
+2. SECURE PAIRING:
+   - Enforces Secure Connections Only mode (CONFIG_BT_SMP_SC_ONLY=y)
+   - Requires 6-digit passkey entry on phone
+   - Uses authenticated pairing with MITM protection
+   - Establishes Level 4 security (highest BLE security)
+
+3. NUS DATA EXCHANGE:
+   - Receives data on NUS RX characteristic (up to 16 bytes)
+   - Currently duplicates 16-byte input to 64-byte output (dummy attestation)
+   - Sends response via NUS TX characteristic in 20-byte chunks
+   - Ready for TF-M attestation integration
+
+4. CALLBACKS REGISTERED:
+   - nus_notif_enabled(): Tracks when phone enables notifications
+   - nus_received(): Handles incoming data from phone
+   - auth_cb_display: Shows passkey on console
+   - auth_cb_info: Reports pairing status
+
+HOW TO TEST WITH YOUR PHONE:
+-----------------------------
+1. Open nRF Connect or LightBlue app
+2. Scan for "SC NUS Peripheral"
+3. Connect - you'll be prompted for passkey
+4. Enter the 6-digit passkey shown in serial console
+5. After pairing, find Nordic UART Service
+6. Enable notifications on TX characteristic
+7. Write 16 bytes to RX characteristic
+8. Receive 64-byte response (4x duplicated input)
+
+CURRENT DATA FLOW:
+------------------
+Mobile App → [16-byte challenge] → NUS RX Characteristic
+                                          ↓
+                                   nus_received() callback
+                                          ↓
+                            TODO: Pass to TF-M for attestation
+                                          ↓
+                     Currently: Duplicate 16 bytes → 64 bytes
+                                          ↓
+                              Send via NUS TX (in 20-byte chunks)
+                                          ↓
+Mobile App ← [64-byte attestation response] ← NUS TX Notifications
+
+NEXT STEPS FOR FULL INTEGRATION:
+---------------------------------
+1. Replace dummy duplication with actual TF-M attestation call
+2. Pass the 16-byte challenge to secure world via PSA APIs
+3. Get signed attestation token from TF-M
+4. Return real cryptographic proof instead of dummy data
+5. Mobile app should verify the attestation signature
+
+SECURITY FEATURES NOW ACTIVE:
+------------------------------
+- Secure Connections Only (no legacy pairing allowed)
+- Authenticated pairing with passkey
+- MITM protection
+- 128-bit AES-CCM encryption
+- TF-M secure boot and attestation ready
+- Secure/Non-secure world isolation
+
+FILES MODIFIED:
+---------------
+1. main.c:
+   - Removed HRS/BAS services
+   - Added NUS service and callbacks
+   - Implemented challenge-response handler
+   - Ready for TF-M attestation integration
+
+2. prj.conf:
+   - Changed from CONFIG_BT_HRS/BT_BAS to CONFIG_BT_ZEPHYR_NUS
+   - Updated device name to "SC NUS Peripheral"
+
+The integration is complete and working! You now have secure BLE pairing
+combined with NUS for flexible data exchange, ready for runtime attestation.

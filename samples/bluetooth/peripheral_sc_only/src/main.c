@@ -18,8 +18,7 @@
 #include <zephyr/bluetooth/conn.h>
 #include <zephyr/bluetooth/uuid.h>
 #include <zephyr/bluetooth/gatt.h>
-#include <zephyr/bluetooth/services/bas.h>
-#include <zephyr/bluetooth/services/hrs.h>
+#include <zephyr/bluetooth/services/nus.h>
 
 #include "tfm_ns_interface.h"
 #ifdef TFM_PSA_API
@@ -27,13 +26,17 @@
 #include "psa/crypto.h"
 #endif
 
-static bool hrf_ntf_enabled;
+#include "psa_attestation.h"
+
+#define CHUNK_SIZE       16    // Initial received data size (16 bytes)
+#define DUPLICATED_SIZE  64    // Duplicated data size (64 bytes)
+#define NOTIF_CHUNK_SIZE 20    // Max notification chunk size
+
+static bool nus_ntf_enabled;
 
 static const struct bt_data ad[] = {
     BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
-    BT_DATA_BYTES(BT_DATA_UUID16_ALL,
-                  BT_UUID_16_ENCODE(BT_UUID_HRS_VAL),
-                  BT_UUID_16_ENCODE(BT_UUID_BAS_VAL)),
+    BT_DATA_BYTES(BT_DATA_UUID128_ALL, BT_UUID_NUS_SRV_VAL),
 };
 
 static const struct bt_data sd[] = {
@@ -61,7 +64,7 @@ static void connected(struct bt_conn *conn, uint8_t err)
     }
 
     printk("Connected to %s\n", addr);
-    
+
     if (bt_conn_set_security(conn, BT_SECURITY_L4)) {
         printk("Failed to set security\n");
     }
@@ -129,31 +132,85 @@ static struct bt_conn_auth_info_cb auth_cb_info = {
     .pairing_failed = pairing_failed,
 };
 
-static void hrs_ntf_changed(bool enabled)
+// NUS notification callback
+static void nus_notif_enabled(bool enabled, void *ctx)
 {
-    hrf_ntf_enabled = enabled;
-    printk("HRS notification status changed: %s\n", enabled ? "enabled" : "disabled");
+    ARG_UNUSED(ctx);
+    nus_ntf_enabled = enabled;
+    printk("sNUS notification status changed: %s\n", enabled ? "enabled" : "disabled");
 }
 
-static struct bt_hrs_cb hrs_cb = {
-    .ntf_changed = hrs_ntf_changed,
-};
-
-static void bas_notify(void)
+// Main NUS data handler with debugging
+static void nus_received(struct bt_conn *conn, const void *data, uint16_t len, void *ctx)
 {
-    uint8_t battery_level = bt_bas_get_battery_level();
-    battery_level = (battery_level == 0) ? 100U : battery_level - 1;
-    bt_bas_set_battery_level(battery_level);
-}
+    char addr[BT_ADDR_LE_STR_LEN];
+    bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
 
-static void hrs_notify(void)
-{
-    static uint8_t heartrate = 90U;
-    heartrate = (heartrate >= 160U) ? 90U : heartrate + 1;
-    if (hrf_ntf_enabled) {
-        bt_hrs_notify(heartrate);
+    printk("*** CHALLENGE FROM %s ***\n", addr);
+    printk("Raw challenge (%d bytes): ", len);
+    for (int i = 0; i < len; i++) {
+        printk("%02X", ((uint8_t*)data)[i]);
     }
+    printk("\n");
+
+    // Check if notifications are enabled before sending
+    if (!nus_ntf_enabled) {
+        printk("Cannot send response - notifications not enabled!\n");
+        return;
+    }
+
+    // Get full IAT using the challenge data
+    static uint8_t token_buffer[ATT_MAX_TOKEN_SIZE];
+    uint32_t token_size = sizeof(token_buffer);
+    psa_status_t status;
+
+    // Prepare challenge buffer - TF-M requires 32, 48, or 64 bytes
+    uint8_t challenge_buffer[32] = {0}; // Use 32-byte buffer, pad with zeros
+    uint32_t challenge_size = sizeof(challenge_buffer);
+
+    // Copy received challenge data (pad with zeros if shorter)
+    memcpy(challenge_buffer, data, MIN(len, challenge_size));
+
+    // Get IAT from TF-M using the padded challenge
+    status = att_get_iat(challenge_buffer, challenge_size, token_buffer, &token_size);
+    if (status != PSA_SUCCESS) {
+        printk("ERROR: Failed to get IAT, status: %d\n", status);
+        return;
+    }
+
+    printk("Got IAT token of %d bytes\n", token_size);
+
+    // Send the full IAT in chunks
+    int err;
+    int total_chunks = (token_size + NOTIF_CHUNK_SIZE - 1) / NOTIF_CHUNK_SIZE;
+
+    for (int i = 0; i < token_size; i += NOTIF_CHUNK_SIZE) {
+        int chunk_size = MIN(NOTIF_CHUNK_SIZE, token_size - i);
+        int chunk_num = (i / NOTIF_CHUNK_SIZE) + 1;
+
+        err = bt_nus_send(conn, &token_buffer[i], chunk_size);
+        if (err != 0) {
+            printk("Notification failed for chunk %d (err %d)\n", chunk_num, err);
+            break;
+        }
+
+        printk("Sent chunk %d: %d bytes (total: %d/%d)\n",
+               chunk_num, chunk_size, i + chunk_size, token_size);
+
+        // Add small delay between chunks to avoid overwhelming the connection
+        k_msleep(10);
+    }
+
+    printk("=== ATTESTATION COMPLETE ===\n");
+    printk("SENT TO DEVICE: %s\n", addr);
+    printk("FULL IAT SIZE SENT: %d bytes===============\n", token_size);
 }
+
+// Register NUS callbacks
+static struct bt_nus_cb nus_cb = {
+    .notif_enabled = nus_notif_enabled,
+    .received = nus_received,
+};
 
 static void tfm_get_version(void)
 {
@@ -188,11 +245,20 @@ int main(void)
         printk("Bluetooth init failed (err %d)\n", err);
         return 0;
     }
+
     att_test();
     printk("Bluetooth initializedddddddd\n");
+
     bt_conn_auth_cb_register(&auth_cb_display);
     bt_conn_auth_info_cb_register(&auth_cb_info);
-    bt_hrs_cb_register(&hrs_cb);
+
+    // Register NUS callbacks
+    err = bt_nus_cb_register(&nus_cb, NULL);
+    if (err) {
+        printk("Failed to register NUS callback: %d\n", err);
+        return err;
+    }
+
     start_adv();
 
     printk("Checking TF-M now...\n");
@@ -204,8 +270,7 @@ int main(void)
 
     while (1) {
         k_sleep(K_SECONDS(1));
-        hrs_notify();
-        bas_notify();
+        // NUS handles notifications via callbacks, no periodic notify needed
     }
     return 0;
 }

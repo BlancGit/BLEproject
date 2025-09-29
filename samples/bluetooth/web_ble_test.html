@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SC NUS Peripheral Test</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 400px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .bluetooth-icon {
+            font-size: 60px;
+            margin: 20px 0;
+        }
+        .connected { color: #4CAF50; }
+        .disconnected { color: #999; }
+        .status {
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+        .status.success { 
+            background-color: #d4edda; 
+            color: #155724; 
+            border: 1px solid #c3e6cb;
+        }
+        .status.error { 
+            background-color: #f8d7da; 
+            color: #721c24; 
+            border: 1px solid #f5c6cb;
+        }
+        .status.info { 
+            background-color: #d1ecf1; 
+            color: #0c5460; 
+            border: 1px solid #bee5eb;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 10px;
+        }
+        button:hover { background-color: #0056b3; }
+        button:disabled { 
+            background-color: #6c757d; 
+            cursor: not-allowed; 
+        }
+        .disconnect-btn { background-color: #dc3545; }
+        .disconnect-btn:hover { background-color: #c82333; }
+        .device-info {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 20px;
+            text-align: left;
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3498db;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>BLE Test App</h1>
+        
+        <div id="bluetooth-icon" class="bluetooth-icon disconnected">📶</div>
+        
+        <h2>SC NUS Peripheral</h2>
+        
+        <div id="status" class="status info">Ready to connect</div>
+        
+        <button id="connect-btn" onclick="connectToDevice()">
+            <span id="connect-text">Scan & Connect</span>
+            <span id="loading" class="loading" style="display: none;"></span>
+        </button>
+        
+        <button id="disconnect-btn" class="disconnect-btn" onclick="disconnectDevice()" style="display: none;">
+            Disconnect
+        </button>
+        
+        <div id="device-info" class="device-info" style="display: none;">
+            <h3>Device Information:</h3>
+            <div id="device-details"></div>
+        </div>
+        
+        <div style="margin-top: 30px; font-size: 12px; color: #666;">
+            <p>Make sure:</p>
+            <ul style="text-align: left;">
+                <li>Your nRF5340 is powered on and advertising</li>
+                <li>Bluetooth is enabled on your phone</li>
+                <li>You're using Chrome/Edge browser</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        let bluetoothDevice;
+        let isConnected = false;
+
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = `status ${type}`;
+        }
+
+        function updateUI(connected) {
+            const icon = document.getElementById('bluetooth-icon');
+            const connectBtn = document.getElementById('connect-btn');
+            const disconnectBtn = document.getElementById('disconnect-btn');
+            const deviceInfo = document.getElementById('device-info');
+            
+            isConnected = connected;
+            
+            if (connected) {
+                icon.className = 'bluetooth-icon connected';
+                icon.textContent = '📶';
+                connectBtn.style.display = 'none';
+                disconnectBtn.style.display = 'inline-block';
+                deviceInfo.style.display = 'block';
+            } else {
+                icon.className = 'bluetooth-icon disconnected';
+                icon.textContent = '📶';
+                connectBtn.style.display = 'inline-block';
+                disconnectBtn.style.display = 'none';
+                deviceInfo.style.display = 'none';
+            }
+        }
+
+        function showLoading(show) {
+            const connectText = document.getElementById('connect-text');
+            const loading = document.getElementById('loading');
+            const connectBtn = document.getElementById('connect-btn');
+            
+            if (show) {
+                connectText.style.display = 'none';
+                loading.style.display = 'inline-block';
+                connectBtn.disabled = true;
+            } else {
+                connectText.style.display = 'inline';
+                loading.style.display = 'none';
+                connectBtn.disabled = false;
+            }
+        }
+
+        async function connectToDevice() {
+            try {
+                showLoading(true);
+                updateStatus('Scanning for SC NUS Peripheral...', 'info');
+
+                // Check if Web Bluetooth is supported
+                if (!navigator.bluetooth) {
+                    throw new Error('Web Bluetooth not supported. Use Chrome/Edge on mobile.');
+                }
+
+                // Request device with Nordic UART Service
+                bluetoothDevice = await navigator.bluetooth.requestDevice({
+                    filters: [
+                        { name: 'SC NUS Peripheral' },
+                        { namePrefix: 'SC NUS' }
+                    ],
+                    optionalServices: ['6e400001-b5a3-f393-e0a9-e50e24dcca9e'] // Nordic UART Service
+                });
+
+                updateStatus('Device found! Connecting...', 'info');
+
+                // Connect to GATT server
+                const server = await bluetoothDevice.gatt.connect();
+                
+                updateStatus('Connected to SC NUS Peripheral ✓', 'success');
+                updateUI(true);
+
+                // Update device info
+                const deviceDetails = document.getElementById('device-details');
+                deviceDetails.innerHTML = `
+                    <strong>Name:</strong> ${bluetoothDevice.name}<br>
+                    <strong>ID:</strong> ${bluetoothDevice.id}<br>
+                    <strong>Connected:</strong> ${server.connected ? 'Yes' : 'No'}
+                `;
+
+                // Listen for disconnection
+                bluetoothDevice.addEventListener('gattserverdisconnected', () => {
+                    updateStatus('Device disconnected ❌', 'error');
+                    updateUI(false);
+                });
+
+            } catch (error) {
+                console.error('Connection failed:', error);
+                updateStatus(`Connection failed: ${error.message}`, 'error');
+                updateUI(false);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function disconnectDevice() {
+            if (bluetoothDevice && bluetoothDevice.gatt.connected) {
+                bluetoothDevice.gatt.disconnect();
+                updateStatus('Disconnected', 'info');
+                updateUI(false);
+            }
+        }
+
+        // Check Web Bluetooth support on page load
+        window.addEventListener('load', () => {
+            if (!navigator.bluetooth) {
+                updateStatus('Web Bluetooth not supported. Please use Chrome or Edge browser.', 'error');
+                document.getElementById('connect-btn').disabled = true;
+            }
+        });
+    </script>
+</body>
+</html>
