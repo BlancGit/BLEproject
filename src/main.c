@@ -18,26 +18,31 @@
 #include <zephyr/bluetooth/conn.h>
 #include <zephyr/bluetooth/uuid.h>
 #include <zephyr/bluetooth/gatt.h>
-#include <zephyr/bluetooth/services/bas.h>
-#include <zephyr/bluetooth/services/hrs.h>
+#include <zephyr/bluetooth/services/nus.h>
+
+#define CHUNK_SIZE       16            // Initial received data size (16 bytes)
+#define DUPLICATED_SIZE  64            // Duplicated data size (64 bytes)
+#define NOTIF_CHUNK_SIZE 20           // Max notification chunk size
+#define TOKEN_BUF_SIZE   2048          // Max attestation token size
+#define CHALLENGE_SIZE   32            // PSA attestation challenge size
+#define RESPONSE_SIZE    64            // Compact response size (32-byte hash + 32-byte challenge echo)
 
 #include "tfm_ns_interface.h"
 #ifdef TFM_PSA_API
 #include "psa_manifest/sid.h"
 #include "psa/crypto.h"
+#include "psa/initial_attestation.h"
 #endif
 
-static bool hrf_ntf_enabled;
+static bool nus_ntf_enabled;
 
 static const struct bt_data ad[] = {
     BT_DATA_BYTES(BT_DATA_FLAGS, (BT_LE_AD_GENERAL | BT_LE_AD_NO_BREDR)),
-    BT_DATA_BYTES(BT_DATA_UUID16_ALL,
-                  BT_UUID_16_ENCODE(BT_UUID_HRS_VAL),
-                  BT_UUID_16_ENCODE(BT_UUID_BAS_VAL)),
+    BT_DATA(BT_DATA_NAME_COMPLETE, CONFIG_BT_DEVICE_NAME, sizeof(CONFIG_BT_DEVICE_NAME) - 1),
 };
 
 static const struct bt_data sd[] = {
-    BT_DATA(BT_DATA_NAME_COMPLETE, CONFIG_BT_DEVICE_NAME, sizeof(CONFIG_BT_DEVICE_NAME) - 1),
+    BT_DATA_BYTES(BT_DATA_UUID128_ALL, BT_UUID_NUS_SRV_VAL),
 };
 
 static void start_adv(void)
@@ -129,31 +134,145 @@ static struct bt_conn_auth_info_cb auth_cb_info = {
     .pairing_failed = pairing_failed,
 };
 
-static void hrs_ntf_changed(bool enabled)
+static void nus_notif_enabled(bool enabled, void *ctx)
 {
-    hrf_ntf_enabled = enabled;
-    printk("HRS notification status changed: %s\n", enabled ? "enabled" : "disabled");
+    ARG_UNUSED(ctx);
+    nus_ntf_enabled = enabled;
+    printk("NUS notification status changed: %s\n", enabled ? "enabled" : "disabled");
 }
 
-static struct bt_hrs_cb hrs_cb = {
-    .ntf_changed = hrs_ntf_changed,
-};
-
-static void bas_notify(void)
+static void nus_received(struct bt_conn *conn, const void *data, uint16_t len, void *ctx)
 {
-    uint8_t battery_level = bt_bas_get_battery_level();
-    battery_level = (battery_level == 0) ? 100U : battery_level - 1;
-    bt_bas_set_battery_level(battery_level);
-}
+    uint8_t challenge[CHALLENGE_SIZE] = {0};  // PSA attestation requires 32-byte challenge
+    static uint8_t token_buf[TOKEN_BUF_SIZE]; // Buffer for attestation token
+    uint8_t response_buf[RESPONSE_SIZE] = {0}; // Compact response buffer
+    size_t token_size = 0;
+    psa_status_t status;
+    int err;
+    char addr[BT_ADDR_LE_STR_LEN];
 
-static void hrs_notify(void)
-{
-    static uint8_t heartrate = 90U;
-    heartrate = (heartrate >= 160U) ? 90U : heartrate + 1;
-    if (hrf_ntf_enabled) {
-        bt_hrs_notify(heartrate);
+    // Get the address of the device that sent the challenge
+    bt_addr_le_to_str(bt_conn_get_dst(conn), addr, sizeof(addr));
+
+    printk("=== CHALLENGE RECEIVED ===\n");
+    printk("FROM DEVICE: %s\n", addr);
+    printk("CHALLENGE SIZE: %d bytes\n", len);
+    printk("Notifications enabled: %s\n", nus_ntf_enabled ? "yes" : "no");
+
+    // Copy received data into challenge buffer (pad with zeros if less than 32 bytes)
+    memcpy(challenge, data, MIN(len, CHALLENGE_SIZE));
+    
+    // If received data is less than 32 bytes, pad the rest
+    if (len < CHALLENGE_SIZE) {
+        printk("Challenge padded from %d to %d bytes\n", len, CHALLENGE_SIZE);
+    }
+
+    // Display the full challenge for verification
+    printk("CHALLENGE RECEIVED (full 32 bytes): ");
+    for (int i = 0; i < CHALLENGE_SIZE; i++) {
+        printk("%02X", challenge[i]);
+        if (i % 8 == 7) printk(" ");  // Space every 8 bytes for readability
+    }
+    printk("\n");
+
+#ifdef TFM_PSA_API
+    // Get Initial Attestation Token from TF-M
+    printk("Requesting attestation token from TF-M...\n");
+    status = psa_initial_attest_get_token(
+        challenge, CHALLENGE_SIZE,           // Challenge input
+        token_buf, TOKEN_BUF_SIZE,          // Token output buffer
+        &token_size);                       // Actual token size
+
+    if (status != PSA_SUCCESS) {
+        printk("ERROR: Attestation failed with status: %d\n", status);
+        // Send error response
+        const char *error_msg = "ATTESTATION_ERROR";
+        if (nus_ntf_enabled) {
+            bt_nus_send(conn, error_msg, strlen(error_msg));
+        }
+        return;
+    }
+
+    printk("SUCCESS: Got attestation token of %d bytes\n", token_size);
+    
+    // Hash the attestation token using PSA Crypto
+    uint8_t token_hash[32] = {0};  // SHA-256 hash
+    size_t hash_length = 0;
+    
+    status = psa_hash_compute(PSA_ALG_SHA_256, 
+                             token_buf, token_size,
+                             token_hash, sizeof(token_hash),
+                             &hash_length);
+    
+    if (status != PSA_SUCCESS) {
+        printk("ERROR: Failed to hash token, status: %d\n", status);
+        return;
+    }
+    
+    printk("\n=== TOKEN HASH (TRIMMED FOR DEVICE DISPLAY) ===\n");
+    printk("SHA-256 Hash: ");
+    for (int i = 0; i < 32; i++) {
+        printk("%02X", token_hash[i]);
+        if (i % 8 == 7) printk(" ");
+    }
+    printk("\n");
+    printk("================================================\n");
+
+    // NOTE: Printing hash above but sending FULL IAT to mobile app
+    // The full token is already in token_buf with size token_size
+    
+#else
+    // Fallback for non-TF-M builds - create dummy full token
+    printk("WARNING: TF-M not available, creating dummy token\n");
+    token_size = 256;  // Dummy token size
+    memset(token_buf, 0xAB, token_size);  // Fill with dummy data
+    // Add some variation with challenge
+    for (int i = 0; i < MIN(len, 32); i++) {
+        token_buf[i] = ((uint8_t*)data)[i];
+    }
+#endif
+
+    // Check if notifications are enabled before sending
+    if (!nus_ntf_enabled) {
+        printk("Cannot send attestation token - notifications not enabled!\n");
+        return;
+    }
+
+    // Send the FULL attestation token (300-500+ bytes for real, 256 for dummy)
+    printk("Sending FULL attestation token (%d bytes) in chunks...\n", token_size);
+    int total_sent = 0;
+    for (int i = 0; i < token_size; i += NOTIF_CHUNK_SIZE) {
+        int chunk_size = MIN(NOTIF_CHUNK_SIZE, token_size - i);
+        err = bt_nus_send(conn, &token_buf[i], chunk_size);
+        if (err != 0) {
+            printk("ERROR: Failed to send chunk %d (err %d)\n", i / NOTIF_CHUNK_SIZE, err);
+            break;
+        }
+        total_sent += chunk_size;
+        if (i < 60 || i >= token_size - 20) {  // Only print first 3 and last chunk
+            printk("Sent chunk %d: %d bytes (total: %d/%d)\n",
+                   i / NOTIF_CHUNK_SIZE, chunk_size, total_sent, token_size);
+        }
+
+        // Small delay between chunks to avoid overwhelming BLE stack
+        k_msleep(10);
+    }
+
+    if (total_sent == token_size) {
+        printk("=== ATTESTATION COMPLETE ===\n");
+        printk("SENT TO DEVICE: %s\n", addr);
+        printk("FULL IAT SIZE SENT: %d bytes (%d chunks)\n", total_sent, (token_size + NOTIF_CHUNK_SIZE - 1) / NOTIF_CHUNK_SIZE);
+        printk("Note: Only printed hash (32 bytes) but sent full IAT\n");
+        printk("========================\n");
+    } else {
+        printk("ERROR: Only sent %d of %d bytes to %s\n", total_sent, token_size, addr);
     }
 }
+
+static struct bt_nus_cb nus_cb = {
+    .notif_enabled = nus_notif_enabled,
+    .received = nus_received,
+};
 
 static void tfm_get_version(void)
 {
@@ -189,10 +308,17 @@ int main(void)
         return 0;
     }
     att_test();
-    printk("Bluetooth initializedddddddd\n");
-    bt_conn_auth_cb_register(&auth_cb_display);
+    printk("Bluetooth initializedddddddddddddddddddddddd\n");
+    printk("Bluetooth initializedddddddddddddddddddddddd\n");
+    // Register NUS callbacks
+    err = bt_nus_cb_register(&nus_cb, NULL);
+    if (err) {
+        printk("Failed to register NUS callback: %d\n", err);
+        return err;
+    }
+    
+    bt_conn_auth_cb_register(&auth_cb_display); 
     bt_conn_auth_info_cb_register(&auth_cb_info);
-    bt_hrs_cb_register(&hrs_cb);
     start_adv();
 
     printk("Checking TF-M now...\n");
@@ -204,8 +330,7 @@ int main(void)
 
     while (1) {
         k_sleep(K_SECONDS(1));
-        hrs_notify();
-        bas_notify();
+        // NUS handles notifications via callbacks, no periodic notify needed
     }
     return 0;
 }

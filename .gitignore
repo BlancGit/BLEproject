@@ -1,0 +1,33 @@
+# Build artifacts
+build/
+build_net/
+*.o
+*.a
+*.elf
+*.bin
+*.hex
+*.map
+*.stat
+*.obj
+
+# IDE files
+.vscode/
+.idea/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Zephyr specific
+*.pickle
+
+# Documentation screenshots (keep source docs)
+*.png
+Screenshot*.png
+
+# Downloaded tools
+tf-m-tools/

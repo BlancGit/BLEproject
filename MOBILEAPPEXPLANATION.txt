@@ -1,0 +1,276 @@
+================================================================================
+MOBILE APP DEVELOPMENT GUIDE FOR BLE ATTESTATION TESTING
+================================================================================
+Last Updated: September 22, 2025
+Target Platform: React Native with Expo
+Development Method: Host machine with QR code scanning for phone deployment
+Purpose: Test optimized BLE attestation system with challenge-response protocol
+
+================================================================================
+PROJECT CONTEXT & REQUIREMENTS
+================================================================================
+
+WHAT WE BUILT ON THE DEVICE SIDE:
+----------------------------------
+• nRF5340 BLE peripheral running "SC NUS Peripheral"
+• Secure Connections Only (6-digit passkey authentication)
+• Nordic UART Service (NUS) for bidirectional communication
+• TF-M Initial Attestation integration
+• Optimized response: 64 bytes instead of 500+ bytes
+• Challenge verification with device identification printing
+
+CURRENT DATA FLOW:
+------------------
+Mobile App → [Challenge bytes] → NUS RX Characteristic (6E400002-...)
+Device → [Processes & prints challenge + sender info] → Internal attestation
+Device → [64-byte response: 32-byte hash + 32-byte challenge echo] → NUS TX (6E400003-...)
+Mobile App ← [4 BLE notification packets] ← Device
+
+DEVICE SERIAL OUTPUT EXAMPLE:
+-----------------------------
+```
+=== CHALLENGE RECEIVED ===
+FROM DEVICE: 79:D3:6C:B8:CB:80 (random)
+CHALLENGE SIZE: 8 bytes
+CHALLENGE RECEIVED (full 32 bytes): ABCDEF12 34567890 00000000 00000000 00000000 00000000 00000000 00000000
+Token successfully hashed (SHA-256): 4F8B42C1 E2934A7D 91F3C2E8 5A6B1D3F...
+=== ATTESTATION COMPLETE ===
+SENT TO DEVICE: 79:D3:6C:B8:CB:80 (random)
+RESPONSE SIZE: 64 bytes
+```
+
+================================================================================
+MOBILE APP REQUIREMENTS
+================================================================================
+
+ESSENTIAL FEATURES TO IMPLEMENT:
+---------------------------------
+
+1. **BLE SCANNING & CONNECTION:**
+   - Scan for device name: "SC NUS Peripheral"
+   - Connect with proper error handling
+   - Handle secure pairing (user enters 6-digit passkey from device serial)
+   - Maintain connection state
+
+2. **SERVICE DISCOVERY:**
+   - Find Nordic UART Service: 6E400001-B5A3-F393-E0A9-E50E24DCCA9E
+   - Get RX Characteristic: 6E400002-B5A3-F393-E0A9-E50E24DCCA9E (write)
+   - Get TX Characteristic: 6E400003-B5A3-F393-E0A9-E50E24DCCA9E (notify)
+
+3. **CHALLENGE SENDING:**
+   - Input field for hex challenge (e.g., "ABCDEF1234567890")
+   - Convert hex string to bytes
+   - Write challenge to RX characteristic
+   - Support challenge lengths from 1-32 bytes (device pads to 32)
+
+4. **NOTIFICATION HANDLING:**
+   - Subscribe to TX characteristic notifications
+   - Collect 4 notification packets (20 bytes each typically)
+   - Reconstruct 64-byte response
+   - Parse response: first 32 bytes = token hash, last 32 bytes = challenge echo
+
+5. **VERIFICATION & DISPLAY:**
+   - Show sent challenge vs received challenge echo
+   - Display token hash in hex format
+   - Confirm challenge echo matches what was sent
+   - Show success/failure status
+
+RECOMMENDED UI COMPONENTS:
+--------------------------
+• Connection status indicator
+• Device info display (name, MAC address)
+• Challenge input field (hex format)
+• Send challenge button
+• Response display area (hash + challenge echo)
+• Verification status (challenge match confirmation)
+• Connection controls (connect/disconnect)
+
+================================================================================
+TECHNICAL IMPLEMENTATION DETAILS
+================================================================================
+
+REACT NATIVE LIBRARIES NEEDED:
+-------------------------------
+• expo-location (for BLE permissions)
+• react-native-ble-plx (BLE functionality)
+• @expo/vector-icons (UI icons)
+• expo-barcode-scanner (for QR code scanning if needed)
+
+KEY BLE UUIDs:
+--------------
+```javascript
+const NORDIC_UART_SERVICE = '6E400001-B5A3-F393-E0A9-E50E24DCCA9E';
+const NUS_RX_CHARACTERISTIC = '6E400002-B5A3-F393-E0A9-E50E24DCCA9E'; // Write to device
+const NUS_TX_CHARACTERISTIC = '6E400003-B5A3-F393-E0A9-E50E24DCCA9E'; // Notifications from device
+```
+
+CHALLENGE FORMAT:
+-----------------
+• Input: Hex string (e.g., "ABCDEF1234567890")
+• Convert to byte array
+• Send via BLE write to RX characteristic
+• Device automatically pads to 32 bytes if shorter
+
+RESPONSE FORMAT:
+----------------
+• Total: 64 bytes in 4 notification packets
+• Bytes 0-31: SHA-256 hash of attestation token
+• Bytes 32-63: Challenge echo (original challenge padded to 32 bytes)
+
+ERROR HANDLING SCENARIOS:
+-------------------------
+• BLE not available/enabled
+• Device not found during scan
+• Connection timeout
+• Pairing failure (wrong passkey)
+• Service/characteristic discovery failure
+• Notification subscription failure
+• Invalid challenge format
+• Response timeout or incomplete
+
+================================================================================
+EXPECTED USER FLOW
+================================================================================
+
+1. **APP STARTUP:**
+   - Check BLE permissions and availability
+   - Show scan button when ready
+
+2. **DEVICE CONNECTION:**
+   - User taps "Scan & Connect"
+   - App scans for "SC NUS Peripheral"
+   - User selects device from list
+   - App attempts connection
+   - Device shows passkey in serial console
+   - User enters 6-digit passkey in app
+   - Connection established
+
+3. **ATTESTATION TEST:**
+   - User enters hex challenge (e.g., "ABCDEF1234567890")
+   - User taps "Send Challenge"
+   - App writes challenge to RX characteristic
+   - Device processes and prints challenge info to serial
+   - App receives 4 notifications containing 64-byte response
+   - App displays token hash and challenge echo
+   - App verifies challenge echo matches original challenge
+
+4. **VERIFICATION:**
+   - App shows: "Challenge Sent: ABCDEF1234567890..."
+   - App shows: "Challenge Echo: ABCDEF1234567890..."
+   - App shows: "Token Hash: 4F8B42C1E2934A7D..."
+   - App shows: "✓ Challenge Verified" or "❌ Challenge Mismatch"
+
+================================================================================
+TESTING SCENARIOS
+================================================================================
+
+BASIC FUNCTIONALITY:
+--------------------
+• Connect to device successfully
+• Send simple challenge ("01020304")
+• Receive and parse 64-byte response
+• Verify challenge echo matches
+
+EDGE CASES:
+-----------
+• Very short challenge (1 byte) - should be padded to 32
+• Maximum challenge (32 bytes) - no padding needed
+• Invalid hex input - should show error
+• Connection loss during attestation
+• Multiple rapid challenges
+
+SECURITY VALIDATION:
+--------------------
+• Different challenges produce different token hashes
+• Challenge echo always matches original challenge
+• Response is exactly 64 bytes
+• Device identification visible in device serial console
+
+================================================================================
+DEVELOPMENT WORKFLOW
+================================================================================
+
+SETUP PROCESS:
+--------------
+1. Initialize React Native project with Expo
+2. Install required BLE libraries
+3. Configure permissions for BLE access
+4. Set up development server with QR code
+
+TESTING PROCESS:
+----------------
+1. Start Expo development server on host machine
+2. Scan QR code with phone to load app
+3. Power on nRF5340 device
+4. Monitor device serial console during testing
+5. Test challenge-response functionality
+6. Verify data in both app and device console
+
+DEBUGGING APPROACH:
+-------------------
+• Use device serial console to verify challenges received
+• Log all BLE operations in mobile app
+• Compare sent vs received challenge for verification
+• Monitor notification packet assembly
+• Test with known good challenges
+
+================================================================================
+SUCCESS CRITERIA
+================================================================================
+
+MINIMUM VIABLE PRODUCT:
+------------------------
+✓ Successfully connects to "SC NUS Peripheral"
+✓ Can send hex challenges to device
+✓ Receives 64-byte attestation response
+✓ Displays token hash and challenge echo
+✓ Verifies challenge echo matches original
+
+ENHANCED FEATURES:
+------------------
+✓ Clean, user-friendly interface
+✓ Real-time connection status
+✓ Challenge input validation
+✓ Response parsing and display
+✓ Error handling and user feedback
+✓ Multiple challenge testing capability
+
+VALIDATION METHODS:
+-------------------
+• Device serial console shows correct challenge received
+• Device serial console shows correct sender MAC address
+• App receives exactly 64 bytes in response
+• Challenge echo in response matches sent challenge
+• Token hash changes when different challenges sent
+• Anti-replay protection via challenge verification
+
+================================================================================
+INTEGRATION WITH EXISTING SYSTEM
+================================================================================
+
+The mobile app will integrate with our existing optimized BLE attestation system:
+
+DEVICE SIDE (Already Complete):
+-------------------------------
+• Secure BLE pairing with passkey
+• Challenge printing for verification
+• Device identification logging
+• Optimized 64-byte response generation
+• SHA-256 token hashing
+• Challenge echo for anti-replay protection
+
+MOBILE SIDE (To Be Developed):
+------------------------------
+• React Native app with Expo deployment
+• BLE connectivity to Nordic UART Service
+• Challenge input and transmission
+• Response collection and parsing
+• Verification and user feedback
+
+This mobile app will provide a professional testing interface for the
+attestation system, replacing the need for LightBlue and providing
+better user experience and verification capabilities.
+
+================================================================================
+END OF MOBILE APP DEVELOPMENT GUIDE
+================================================================================
